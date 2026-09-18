@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using NOVR.UnityTypesHelper;
 using UnityEngine;
 using UnityEngine.XR;
@@ -10,11 +12,52 @@ public class NOVRHeadsetData : NOVRBehaviour
     public static Vector3 TranslationAnchor { get; private set; }
     public static Vector3 Translation { get; private set; }
     public static Vector3 TranslationCalibrationOffset { get; private set; }
-    public static Vector3 TranslationError => Translation - TranslationCalibrationOffset - TranslationAnchor;
+    public static Vector3 TranslationError => Quaternion.Inverse(RotationCalibrationOffset) * (Translation - TranslationAnchor - CockpitOffset) - TranslationCalibrationOffset;
+
+    // Configured cockpit head offset, in the game camera's local space (x = right, y = up, z = forward).
+    // Applied live and kept out of the calibration, so it always points along the cockpit's axes.
+    public static Vector3 CockpitOffset => new(
+        ModConfiguration.Instance.CockpitHeadRightOffset.Value,
+        0f,
+        ModConfiguration.Instance.CockpitHeadForwardOffset.Value);
 
     public static Quaternion Rotation { get; private set; }
     public static Quaternion RotationCalibrationOffset { get; private set; } = Quaternion.identity;
     public static Quaternion RotationError => Quaternion.Inverse(RotationCalibrationOffset) * Rotation;
+
+    // Raised after the view has been recentered, so smoothed or world-anchored UI can snap to the new pose.
+    public static event Action? Recentered;
+
+    // Tracking jumps bigger than this in a single frame can't be real head motion, so they are treated as an
+    // external recenter (e.g. SteamVR's "Reset seated position").
+    private const float ExternalRecenterAngleThreshold = 45f;
+    private const float ExternalRecenterDistanceThreshold = 0.5f;
+
+    private static bool _hasPreviousHeadPose;
+    private static Quaternion _previousHeadRotation;
+    private static Vector3 _previousHeadPosition;
+    private static int _externalRecenterFrame = -1;
+    private static readonly List<XRInputSubsystem> InputSubsystems = new();
+    private static readonly HashSet<XRInputSubsystem> SubscribedInputSubsystems = new();
+    private float _nextSubsystemScanTime;
+
+    // Makes the direction the player is currently facing the new forward, and the current head position the new zero.
+    public static void Recenter()
+    {
+        CalibrateTranslation();
+
+        // Yaw from the horizontal forward direction, which stays correct when looking steeply up or down.
+        var headRotation = GetHeadRotation();
+        var forward = headRotation * Vector3.forward;
+        var yaw = new Vector2(forward.x, forward.z).sqrMagnitude > 0.0001f
+            ? Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg
+            : headRotation.eulerAngles.y;
+        RotationCalibrationOffset = Quaternion.Euler(0f, -yaw, 0f);
+
+        UpdateTransform();
+        Debug.Log("[NOVR] VR view recentered.");
+        Recentered?.Invoke();
+    }
 
     public static void SetAnchor(Vector3 anchor)
     {
@@ -29,8 +72,7 @@ public class NOVRHeadsetData : NOVRBehaviour
             (calibrationAxes & CalibrationAxes.X) != 0 ? currentError.x : ov ? TranslationCalibrationOffset.x : 0,
             (calibrationAxes & CalibrationAxes.Y) != 0 ? currentError.y : ov ? TranslationCalibrationOffset.y : 0,
             (calibrationAxes & CalibrationAxes.Z) != 0 ? currentError.z : ov ? TranslationCalibrationOffset.z : 0
-        ) + Vector3.forward * ModConfiguration.Instance.CockpitHeadForwardOffset.Value
-          + Vector3.right * ModConfiguration.Instance.CockpitHeadRightOffset.Value;
+        );
     }
 
     public static void CalibrateRotation(CalibrationAxes calibrationAxes = CalibrationAxes.Yaw, bool overrideExistingInNonCalibratedAxes = false)
@@ -86,6 +128,8 @@ public class NOVRHeadsetData : NOVRBehaviour
 
     private void Update()
     {
+        SubscribeToTrackingOriginChanges();
+        DetectExternalRecenter();
         UpdateTransform();
     }
 
@@ -94,10 +138,59 @@ public class NOVRHeadsetData : NOVRBehaviour
         UpdateTransform();
     }
 
-    private void UpdateTransform()
+    private static void UpdateTransform()
     {
-        Translation = TranslationAnchor + TranslationCalibrationOffset + GetHeadPosition();
+        // Head movement is rotated along with the yaw calibration, so leaning forward still moves you forward
+        // after recentering while turned.
+        Translation = TranslationAnchor + CockpitOffset + RotationCalibrationOffset * (GetHeadPosition() + TranslationCalibrationOffset);
         Rotation = RotationCalibrationOffset * GetHeadRotation();
+    }
+
+    private void SubscribeToTrackingOriginChanges()
+    {
+        if (Time.unscaledTime < _nextSubsystemScanTime) return;
+        _nextSubsystemScanTime = Time.unscaledTime + 1f;
+
+        SubsystemManager.GetSubsystems(InputSubsystems);
+        foreach (var subsystem in InputSubsystems)
+        {
+            if (SubscribedInputSubsystems.Add(subsystem))
+            {
+                subsystem.trackingOriginUpdated += OnTrackingOriginUpdated;
+            }
+        }
+    }
+
+    private static void OnTrackingOriginUpdated(XRInputSubsystem subsystem)
+    {
+        // Wait a frame so the new tracking origin is reflected in the head pose before recentering on it.
+        _externalRecenterFrame = Time.frameCount + 1;
+    }
+
+    // When the runtime recenters (e.g. SteamVR "Reset seated position"), NOVR's own calibration would be applied
+    // on top of the new origin and leave the view off by the old correction, so recenter NOVR along with it.
+    private static void DetectExternalRecenter()
+    {
+        var headRotation = GetHeadRotation();
+        var headPosition = GetHeadPosition();
+
+        if (_hasPreviousHeadPose &&
+            (Quaternion.Angle(headRotation, _previousHeadRotation) > ExternalRecenterAngleThreshold ||
+             Vector3.Distance(headPosition, _previousHeadPosition) > ExternalRecenterDistanceThreshold))
+        {
+            _externalRecenterFrame = Time.frameCount;
+        }
+
+        _hasPreviousHeadPose = headRotation != default;
+        _previousHeadRotation = headRotation;
+        _previousHeadPosition = headPosition;
+
+        if (_externalRecenterFrame >= 0 && Time.frameCount >= _externalRecenterFrame)
+        {
+            _externalRecenterFrame = -1;
+            Debug.Log("[NOVR] Tracking origin changed (e.g. SteamVR recenter); recentering NOVR view.");
+            Recenter();
+        }
     }
 
     private static Vector3 GetHeadPosition()

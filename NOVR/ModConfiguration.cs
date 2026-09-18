@@ -28,6 +28,7 @@ public class ModConfiguration
     public readonly ConfigEntry<float> CockpitHeadForwardOffset;
     public readonly ConfigEntry<float> CockpitHeadRightOffset;
     public readonly ConfigEntry<KeyCode> RecenterShortcut;
+    public readonly ConfigEntry<float> RecenterShortcutDelay;
     public readonly ConfigEntry<bool> ShowRecenterInPauseMenu;
     public readonly ConfigEntry<bool> SavePositionTrigger;
     public readonly ConfigEntry<float> MapClickMaxRadius;
@@ -141,6 +142,12 @@ public class ModConfiguration
             "Recenter Shortcut",
             KeyCode.F9,
             "Keyboard shortcut to recenter the VR view. For HOTAS users, map a joystick button to this key via external software.");
+
+        RecenterShortcutDelay = config.Bind(
+            "Input",
+            "Recenter Shortcut Delay",
+            3.0f,
+            "Seconds between pressing the Recenter Shortcut and the recenter happening, giving you time to look forward. Set to 0 to recenter instantly.");
 
         ShowRecenterInPauseMenu = config.Bind(
             "Input",

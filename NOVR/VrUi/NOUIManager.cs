@@ -41,11 +41,21 @@ public class NOUIManager : NOVRBehaviour
     {
         base.Awake();
         APIBus.OnMainCameraChanged += OnMainCameraChanged;
+        NOVRHeadsetData.Recentered += OnRecentered;
     }
 
     private void OnDestroy()
     {
         APIBus.OnMainCameraChanged -= OnMainCameraChanged;
+        NOVRHeadsetData.Recentered -= OnRecentered;
+    }
+
+    private void OnRecentered()
+    {
+        // Snap instead of smoothing, so head-referenced UI doesn't swing around after a recenter.
+        var smoothedForwardReference = CockpitHudReference;
+        smoothedForwardReference.transform.localPosition = NOVRHeadsetData.Translation;
+        smoothedForwardReference.transform.localRotation = NOVRHeadsetData.Rotation;
     }
 
     private void Start()

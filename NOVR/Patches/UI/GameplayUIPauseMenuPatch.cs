@@ -117,7 +117,6 @@ internal static class GameplayUIPauseMenuPatch
 
     private static void OnRecenterClicked()
     {
-        NOVRHeadsetData.CalibrateTranslation();
-        NOVRHeadsetData.CalibrateRotation();
+        NOVRHeadsetData.Recenter();
     }
 }

@@ -19,7 +19,6 @@ public class NativeVrUiRoot : NOVRBehaviour
     private const float RequestedMenuTransitionSeconds = 0.5f;
     private const float MissionLaunchEnvironmentSuppressionSeconds = 8f;
     private const float RecenterDelaySeconds = 2.0f;
-    private const float LiveRecenterDelaySeconds = 3.0f;
     private const float AnchorResetAfterHiddenSeconds = 1.5f;
     private const float MinimumMenuCenterHeightBelowHeadMeters = -0.25f;
     private const float RecenterWidgetDistanceMeters = 1.35f;
@@ -367,21 +366,29 @@ public class NativeVrUiRoot : NOVRBehaviour
     {
         if (!UnityEngine.Input.GetKeyDown(ModConfiguration.Instance.RecenterShortcut.Value)) return;
 
-        if (shouldShowNativeUi)
+        var delay = ModConfiguration.Instance.RecenterShortcutDelay.Value;
+        if (delay <= 0f)
         {
-            RecenterMenu();
+            _recenterPending = false;
+            _liveRecenterPending = false;
+            NOVRHeadsetData.Recenter();
+            UpdateRecenterButtonText();
+        }
+        else if (shouldShowNativeUi)
+        {
+            RecenterMenu(delay);
         }
         else
         {
-            QueueLiveRecenter();
+            QueueLiveRecenter(delay);
         }
     }
 
-    private void QueueLiveRecenter()
+    private void QueueLiveRecenter(float delay)
     {
         _liveRecenterPending = true;
-        _pendingLiveRecenterTime = Time.unscaledTime + LiveRecenterDelaySeconds;
-        Debug.Log($"[NOVR] Live recenter queued for {LiveRecenterDelaySeconds:0.0} seconds from now.");
+        _pendingLiveRecenterTime = Time.unscaledTime + delay;
+        Debug.Log($"[NOVR] Live recenter queued for {delay:0.0} seconds from now.");
     }
 
     private void UpdateLivePendingRecenter()
@@ -389,26 +396,26 @@ public class NativeVrUiRoot : NOVRBehaviour
         if (!_liveRecenterPending) return;
         if (Time.unscaledTime < _pendingLiveRecenterTime) return;
 
-        NOVRHeadsetData.CalibrateTranslation();
-        NOVRHeadsetData.CalibrateRotation();
         _liveRecenterPending = false;
-        Debug.Log("[NOVR] Live recenter applied.");
+        NOVRHeadsetData.Recenter();
     }
 
     private void RecenterMenu()
     {
+        RecenterMenu(RecenterDelaySeconds);
+    }
+
+    private void RecenterMenu(float delay)
+    {
         _recenterPending = true;
-        _pendingRecenterTime = Time.unscaledTime + RecenterDelaySeconds;
+        _pendingRecenterTime = Time.unscaledTime + delay;
         UpdateRecenterButtonText();
-        Debug.Log($"[NOVR] Native VR UI recenter queued for {RecenterDelaySeconds:0.0} seconds from now.");
+        Debug.Log($"[NOVR] Native VR UI recenter queued for {delay:0.0} seconds from now.");
     }
 
     private void RecenterMenuImmediately()
     {
-        // CaptureMenuAnchor();
-        // UpdatePlacement(true);
-        NOVRHeadsetData.CalibrateTranslation();
-        NOVRHeadsetData.CalibrateRotation();
+        NOVRHeadsetData.Recenter();
         _recenterPending = false;
         UpdateRecenterButtonText();
         Debug.Log("[NOVR] Native VR UI recentered.");
