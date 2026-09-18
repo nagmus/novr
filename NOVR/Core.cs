@@ -97,6 +97,37 @@ if (NOVRPlugin.LogSource != null)
     {
         EnsureNativeMenuEnvironmentAssetCache();
         UpdatePhysicsRate();
+        ReloadConfigIfChangedOnDisk();
+    }
+
+    private System.DateTime _configLastWriteTime;
+    private float _nextConfigCheckTime;
+
+    // Picks up edits made to the config file while the game is running (e.g. by tools/Setup-NOVRCameraBindings).
+    private void ReloadConfigIfChangedOnDisk()
+    {
+        if (Time.unscaledTime < _nextConfigCheckTime) return;
+        _nextConfigCheckTime = Time.unscaledTime + 0.5f;
+
+        var config = ModConfiguration.Instance.Config;
+        try
+        {
+            var lastWriteTime = System.IO.File.GetLastWriteTimeUtc(config.ConfigFilePath);
+            if (_configLastWriteTime == default)
+            {
+                _configLastWriteTime = lastWriteTime;
+                return;
+            }
+
+            if (lastWriteTime == _configLastWriteTime) return;
+            config.Reload();
+            _configLastWriteTime = System.IO.File.GetLastWriteTimeUtc(config.ConfigFilePath);
+            Debug.Log("[NOVR] Config file changed on disk; reloaded.");
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogWarning($"[NOVR] Failed to reload config: {exception.Message}");
+        }
     }
 
     private void EnsureNativeMenuEnvironmentAssetCache()

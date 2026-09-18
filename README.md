@@ -60,6 +60,12 @@ On game startup, the NOVR BepInEx patcher copies required XR support files into 
 
 If the game is already running while installing or rebuilding, Windows may prevent those files from being replaced. Close Nuclear Option before installing, updating, or building the mod.
 
+### Recentering and moving your head in the cockpit
+
+- **Recenter:** press the `Recenter Shortcut` (default `F9`) or use `RECENTER VIEW` in the pause menu. The direction you're facing becomes forward. `Recenter Shortcut Delay` (default 3 seconds) gives you time to look forward first; set it to `0` to recenter instantly. SteamVR's own "Reset seated position" also works.
+- **Camera Move:** bind keys or joystick controls in the `[Camera Move]` config section to move your head forward/back, left/right and up/down while flying. Changes are saved per aircraft type.
+- **Joystick bindings** use Unity Input System control paths (e.g. `/<device>/hat/up`). The easiest way to set them is `tools/Setup-NOVRCameraBindings.bat`: start the game, run it, switch back to the game and follow the spoken prompts. Alternatively, enable `Log Controller Input` and look in `BepInEx/LogOutput.log` for the paths of the controls you press.
+
 ### Linux/Proton notes
 
 The installer tries to set the required `winhttp` override automatically. If BepInEx does not load under Proton, configure the game's Wine prefix manually so `winhttp` uses `native,builtin`.
