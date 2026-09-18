@@ -16,10 +16,14 @@ public class NOVRHeadsetData : NOVRBehaviour
 
     // Configured cockpit head offset, in the game camera's local space (x = right, y = up, z = forward).
     // Applied live and kept out of the calibration, so it always points along the cockpit's axes.
-    public static Vector3 CockpitOffset => new(
+    public static Vector3 CockpitOffset => new Vector3(
         ModConfiguration.Instance.CockpitHeadRightOffset.Value,
-        0f,
-        ModConfiguration.Instance.CockpitHeadForwardOffset.Value);
+        ModConfiguration.Instance.CockpitHeadUpOffset.Value,
+        ModConfiguration.Instance.CockpitHeadForwardOffset.Value) + CockpitOffsetAdjustment;
+
+    // Live adjustment on top of the configured offset while the Camera Move bindings are held. It's folded into
+    // the config once movement stops, so the config file isn't rewritten every frame.
+    public static Vector3 CockpitOffsetAdjustment { get; set; }
 
     public static Quaternion Rotation { get; private set; }
     public static Quaternion RotationCalibrationOffset { get; private set; } = Quaternion.identity;

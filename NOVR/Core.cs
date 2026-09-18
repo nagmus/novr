@@ -79,6 +79,7 @@ if (NOVRPlugin.LogSource != null)
         
         _headsetData = NOVRBehaviour.Create<NOVRHeadsetData>(transform);
         _vrUi = NOVRBehaviour.Create<NOUIManager>(transform);
+        NOVRBehaviour.Create<CameraMoveController>(transform);
 
         if (ModConfiguration.Instance.LogXrStartupDiagnostics.Value &&
             gameObject.GetComponent<XrStartupDiagnosticsBehaviour>() == null)
@@ -132,10 +133,11 @@ if (NOVRPlugin.LogSource != null)
         if (_aircraft != _oldAircraft)
         {
             CurrentAircraftId = ResolveAircraftId(_aircraft);
-            if (ModConfiguration.Instance.TryGetSavedOffset(CurrentAircraftId, out var f, out var r))
+            if (ModConfiguration.Instance.TryGetSavedOffset(CurrentAircraftId, out var f, out var r, out var u))
             {
                 ModConfiguration.Instance.CockpitHeadForwardOffset.Value = f;
                 ModConfiguration.Instance.CockpitHeadRightOffset.Value = r;
+                ModConfiguration.Instance.CockpitHeadUpOffset.Value = u;
             }
             NOVRHeadsetData.CalibrateTranslation();
         }

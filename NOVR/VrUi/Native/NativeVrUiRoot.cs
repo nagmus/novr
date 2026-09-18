@@ -362,9 +362,19 @@ public class NativeVrUiRoot : NOVRBehaviour
         VrUiCursor.I?.ClearProjectionReferenceRotation();
     }
 
+    private static bool _recenterShortcutTriggered;
+
+    // Lets other input sources (e.g. the joystick Recenter Button) act exactly like the Recenter Shortcut key.
+    public static void TriggerRecenterShortcut()
+    {
+        _recenterShortcutTriggered = true;
+    }
+
     private void HandleRecenterShortcut(bool shouldShowNativeUi)
     {
-        if (!UnityEngine.Input.GetKeyDown(ModConfiguration.Instance.RecenterShortcut.Value)) return;
+        var triggered = _recenterShortcutTriggered;
+        _recenterShortcutTriggered = false;
+        if (!triggered && !UnityEngine.Input.GetKeyDown(ModConfiguration.Instance.RecenterShortcut.Value)) return;
 
         var delay = ModConfiguration.Instance.RecenterShortcutDelay.Value;
         if (delay <= 0f)
